@@ -1,0 +1,54 @@
+{
+  "configurations" : [
+    {
+      "id" : "C46A61E3-96C1-4F08-B5F7-0DC98EDDC159",
+      "name" : "Sandbox",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Examples.xcodeproj",
+      "identifier" : "770F621B30106ABB009C54ED",
+      "name" : "Examples"
+    },
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "selectedTests" : [
+        "SandboxStoreKitProbeTests"
+      ],
+      "target" : {
+        "containerPath" : "container:Examples.xcodeproj",
+        "identifier" : "770F622D30106ABD009C54ED",
+        "name" : "ExamplesTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "selectedTests" : [
+        "ExamplesUITests/testManageSubscriptionsReturnConvergesWithoutManualRefresh",
+        "ExamplesUITests/testPaymentDashboardLaunches",
+        "ExamplesUITests/testPurchaseConvergesWithoutManualRefresh",
+        "ExamplesUITests/testRestoreConvergesWithoutManualRefresh",
+        "ExamplesUITests/testSandboxSubscriptionPricingAndOffers",
+        "ExamplesUITests/testYearlyRefundRevocationConvergesWithoutManualRefresh",
+        "ExamplesUITests/testYearlyOfferMenuShowsDisabledUnconfiguredPlaceholder",
+        "ExamplesUITests/testYearlyUpFrontCancellationLifecycleSurvivesRelaunch",
+        "ExamplesUITests/testYearlyUpFrontManageSubscriptionsReturnConvergesWithoutManualRefresh",
+        "ExamplesUITests/testYearlySandboxOfferCodeMenuSelectsSanitizedPrimaryAction"
+      ],
+      "target" : {
+        "containerPath" : "container:Examples.xcodeproj",
+        "identifier" : "770F623730106ABD009C54ED",
+        "name" : "ExamplesUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

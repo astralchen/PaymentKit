@@ -1,0 +1,301 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "zh_Hans",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "E94D3551",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "8",
+      "familyShareable" : false,
+      "internalID" : "2082FC3B",
+      "localizations" : [
+        {
+          "description" : "用于验证消耗型 App 内购买流程的演示商品。",
+          "displayName" : "100 个演示代币",
+          "locale" : "zh_Hans"
+        }
+      ],
+      "productID" : "paymentkit.demo.coins100",
+      "referenceName" : "PaymentKit Coins 100",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "8",
+      "familyShareable" : true,
+      "internalID" : "F7801D95",
+      "localizations" : [
+        {
+          "description" : "用于验证非消耗型 App 内购买流程的演示商品。",
+          "displayName" : "永久解锁",
+          "locale" : "zh_Hans"
+        }
+      ],
+      "productID" : "paymentkit.demo.lifetime",
+      "referenceName" : "PaymentKit Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_compatibilityTimeRate" : {
+      "3" : 6
+    },
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "zh_Hans",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "CHN",
+    "_storeKitErrors" : [
+      {
+        "current" : {
+          "index" : 2,
+          "type" : "generic"
+        },
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : {
+          "index" : 1,
+          "type" : "purchase"
+        },
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : {
+          "index" : 0,
+          "type" : "verification"
+        },
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : {
+          "index" : 2,
+          "type" : "generic"
+        },
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : {
+          "index" : 2,
+          "type" : "generic"
+        },
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : {
+          "index" : 3,
+          "type" : "generic"
+        },
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : {
+          "index" : 3,
+          "type" : "generic"
+        },
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : {
+          "index" : 0,
+          "type" : "refund request"
+        },
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : {
+          "index" : 4,
+          "type" : "generic"
+        },
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ],
+    "_timeRate" : 1003
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "22255725",
+      "localizations" : [
+        {
+          "description" : "",
+          "displayName" : "PaymentKit 演示订阅",
+          "locale" : "zh_Hans"
+        }
+      ],
+      "name" : "PaymentKit Demo Subscription",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "displayPrice" : "8",
+              "internalID" : "5E4C98D2",
+              "numberOfPeriods" : 2,
+              "offerID" : "pk_monthly_promo_099_2m_2026",
+              "paymentMode" : "payAsYouGo",
+              "referenceName" : "PaymentKit Monthly Promo 099 2M 2026",
+              "subscriptionPeriod" : "P1M"
+            }
+          ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "22",
+              "displayPrice" : "22",
+              "internalID" : "1A8CE555",
+              "isEnabled" : true
+            }
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "22",
+          "familyShareable" : true,
+          "groupNumber" : 2,
+          "internalID" : "E4C3B1B9",
+          "introductoryOffer" : {
+            "billingPlanType" : "BILLED_UPFRONT",
+            "internalID" : "E6357864",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "introductoryOffers" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "internalID" : "E6357864",
+              "numberOfPeriods" : 1,
+              "paymentMode" : "free",
+              "subscriptionPeriod" : "P1W"
+            }
+          ],
+          "localizations" : [
+            {
+              "description" : "用于验证自动续期订阅流程的演示月订阅。",
+              "displayName" : "月订阅",
+              "locale" : "zh_Hans"
+            },
+            {
+              "description" : "A demo monthly auto-renewable subscription.",
+              "displayName" : "Monthly Subscription",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "paymentkit.demo.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "PaymentKit Monthly",
+          "subscriptionGroupID" : "22255725",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "198",
+              "displayPrice" : "198",
+              "internalID" : "8A00F767",
+              "isEnabled" : true
+            },
+            {
+              "billingPlanType" : "MONTHLY",
+              "commitmentDisplayPrice" : "216",
+              "displayPrice" : "18",
+              "internalID" : "C2E09540",
+              "isEnabled" : true
+            }
+          ],
+          "codeOffers" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "displayPrice" : "68",
+              "eligibility" : [
+                "existing",
+                "expired",
+                "new"
+              ],
+              "internalID" : "A2B9E605",
+              "isStackable" : false,
+              "numberOfPeriods" : 1,
+              "paymentMode" : "payUpFront",
+              "referenceName" : "pk_annual_code_999_2026",
+              "subscriptionPeriod" : "P1Y"
+            }
+          ],
+          "displayPrice" : "198",
+          "familyShareable" : true,
+          "groupNumber" : 1,
+          "internalID" : "460D7EFA",
+          "introductoryOffer" : {
+            "billingPlanType" : "BILLED_UPFRONT",
+            "displayPrice" : "148",
+            "internalID" : "D1989EDF",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "payUpFront",
+            "subscriptionPeriod" : "P1Y"
+          },
+          "introductoryOffers" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "displayPrice" : "148",
+              "internalID" : "D1989EDF",
+              "numberOfPeriods" : 1,
+              "paymentMode" : "payUpFront",
+              "subscriptionPeriod" : "P1Y"
+            }
+          ],
+          "localizations" : [
+            {
+              "description" : "用于验证自动续期订阅流程的演示年订阅。",
+              "displayName" : "年订阅",
+              "locale" : "zh_Hans"
+            },
+            {
+              "description" : "A demo yearly auto-renewable subscription.",
+              "displayName" : "Yearly Subscription",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "paymentkit.demo.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "PaymentKit Yearly",
+          "subscriptionGroupID" : "22255725",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 5,
+    "minor" : 0
+  }
+}

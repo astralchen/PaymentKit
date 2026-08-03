@@ -1,0 +1,34 @@
+{
+  "configurations" : [
+    {
+      "id" : "09A59CD8-314C-4D83-BDF3-E321080EFB08",
+      "name" : "Local StoreKit",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Examples.xcodeproj",
+      "identifier" : "770F621B30106ABB009C54ED",
+      "name" : "Examples"
+    },
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "skippedTests" : [
+        "SandboxStoreKitProbeTests"
+      ],
+      "target" : {
+        "containerPath" : "container:Examples.xcodeproj",
+        "identifier" : "770F622D30106ABD009C54ED",
+        "name" : "ExamplesTests"
+      }
+    }
+  ],
+  "version" : 1
+}
