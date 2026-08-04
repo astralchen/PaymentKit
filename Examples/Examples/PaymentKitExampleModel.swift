@@ -37,6 +37,13 @@ enum ExamplePaymentStorage {
     }
 }
 
+#if DEBUG
+private enum ConcurrentOutboxProbeTiming {
+    static let timeoutNanoseconds: UInt64 = 25_000_000_000
+    static let pollingIntervalNanoseconds: UInt64 = 200_000_000
+}
+#endif
+
 /// 在 StoreKit 系统界面返回后按可靠顺序协调示例状态。
 ///
 /// 此类型只负责示例状态编排，不决定商品权益，也不会调用 `AppStore.sync()`。
@@ -1005,6 +1012,43 @@ final class PaymentKitExampleModel: ObservableObject {
         }
     }
 
+#if DEBUG
+    /// 等待并发 outbox 探针信号；轮询和超时任务中先完成的一方决定结果。
+    nonisolated static func waitForConcurrentOutboxProbeSignal(
+        timeoutNanoseconds: UInt64,
+        pollingIntervalNanoseconds: UInt64,
+        condition: @escaping @Sendable () async -> Bool
+    ) async -> Bool {
+        await withTaskGroup(of: Bool.self, returning: Bool.self) { group in
+            group.addTask {
+                while !Task.isCancelled {
+                    if await condition() { return true }
+                    do {
+                        try await Task.sleep(
+                            nanoseconds: pollingIntervalNanoseconds
+                        )
+                    } catch {
+                        return false
+                    }
+                }
+                return false
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    return false
+                } catch {
+                    return false
+                }
+            }
+
+            let wasSignaled = await group.next() ?? false
+            group.cancelAll()
+            return wasSignaled
+        }
+    }
+#endif
+
 #if DEBUG && os(iOS)
     /// 准备主 App 在后台与 Share Extension 并发重试同一 outbox。
     ///
@@ -1033,28 +1077,34 @@ final class PaymentKitExampleModel: ObservableObject {
             defer { self.finishConcurrentOutboxProbe() }
 
             do {
-                for _ in 0..<125 {
-                    try Task.checkCancellation()
-                    let latestBackendSnapshot = await backend.snapshot()
-                    if latestBackendSnapshot.signedEventCount > baselineSignedEventCount {
-                        // 扩展已提交后台事务但仍在 Debug 停顿中；主 App 此时从自己的
-                        // PaymentClient 实例并发重放，验证跨进程幂等和 outbox 状态合并。
-                        await backend.setFaultMode(.normal)
-                        let report = await client.retryUnfinishedTransactions()
-                        let finalBackendSnapshot = await backend.snapshot()
-                        try Task.checkCancellation()
-
-                        self.snapshot = report.snapshot
-                        self.backendSnapshot = finalBackendSnapshot
-                        self.errorMessage = nil
-                        self.statusMessage = report.snapshot.pendingTransactions.isEmpty
-                            ? "并发探针完成：主 App 已重放并清理 outbox"
-                            : "并发探针完成：仍有 \(report.snapshot.pendingTransactions.count) 笔待处理"
-                        return
-                    }
-                    try await Task.sleep(nanoseconds: 200_000_000)
+                let wasSignaled = await Self.waitForConcurrentOutboxProbeSignal(
+                    timeoutNanoseconds:
+                        ConcurrentOutboxProbeTiming.timeoutNanoseconds,
+                    pollingIntervalNanoseconds:
+                        ConcurrentOutboxProbeTiming.pollingIntervalNanoseconds
+                ) {
+                    await backend.snapshot().signedEventCount
+                        > baselineSignedEventCount
                 }
-                statusMessage = "并发探针等待超时，未修改交易状态"
+                try Task.checkCancellation()
+                guard wasSignaled else {
+                    statusMessage = "并发探针等待超时，未修改交易状态"
+                    return
+                }
+
+                // 扩展已提交后台事务但仍在 Debug 停顿中；主 App 此时从自己的
+                // PaymentClient 实例并发重放，验证跨进程幂等和 outbox 状态合并。
+                await backend.setFaultMode(.normal)
+                let report = await client.retryUnfinishedTransactions()
+                let finalBackendSnapshot = await backend.snapshot()
+                try Task.checkCancellation()
+
+                self.snapshot = report.snapshot
+                self.backendSnapshot = finalBackendSnapshot
+                self.errorMessage = nil
+                self.statusMessage = report.snapshot.pendingTransactions.isEmpty
+                    ? "并发探针完成：主 App 已重放并清理 outbox"
+                    : "并发探针完成：仍有 \(report.snapshot.pendingTransactions.count) 笔待处理"
             } catch is CancellationError {
                 // 取消或后台时间耗尽时，不再改变模拟后台和交易状态。
             } catch {

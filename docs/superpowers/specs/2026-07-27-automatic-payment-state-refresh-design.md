@@ -94,10 +94,12 @@ fake 网关提供可控流。更新到达时执行完整自动刷新，使价格
 - 月付 12 个月承诺计划的外层字段表示下一笔月度账单，内层
   `commitmentInfo.willAutoRenew` 表示承诺结束后是否开始下一轮完整承诺。
 
-客户端增加长期订阅状态监听，iOS 17+/macOS 14+ 消费
-`Product.SubscriptionInfo.Status.all`，旧系统消费 `Status.updates`。状态事件与
-主动订阅组查询按 renewal JWS `signedDate` 合并，较旧查询不得覆盖较新事件；空的
-权威订阅组事件清除陈旧组状态。iOS 18.4+ 再使用按交易 ID 查询交叉校验组查询。
+当前订阅状态由 `Product.SubscriptionInfo.status(for:)` 在启动和刷新时主动加载；
+`Product.SubscriptionInfo.Status.all` 是会在当前快照枚举完成后结束的有限序列，
+不得作为长期监听。所有支持系统的长期变化监听统一消费 `Status.updates`。状态事件与
+主动订阅组查询按 renewal JWS `signedDate` 合并：较旧查询不得覆盖较新事件，较新
+查询淘汰较旧事件缓存；一次空查询不撤销已验签事件缓存。`stop()`、商店会话热重载
+和显式恢复购买会清除会话缓存。iOS 18.4+ 再使用按交易 ID 查询交叉校验组查询。
 
 这些机制不能把仍为 `true` 的签名快照推断成 `false`。2026-07-30 真机 Sandbox
 观察到系统订阅页已关闭预付年订阅续订，但所有设备 StoreKit 查询面持续返回陈旧

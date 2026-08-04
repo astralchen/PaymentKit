@@ -15,6 +15,34 @@ struct PaymentKitStoreKitTests {
         "paymentkit.demo.yearly",
     ]
 
+    @Test("并发 outbox 探针在信号到达时结束等待")
+    func concurrentOutboxProbeWaitEndsWhenSignaled() async {
+        let signal = ExampleProbeSignal(opensAfterCheckCount: 2)
+
+        let wasSignaled = await PaymentKitExampleModel
+            .waitForConcurrentOutboxProbeSignal(
+                timeoutNanoseconds: 1_000_000_000,
+                pollingIntervalNanoseconds: 1_000_000
+            ) {
+                await signal.check()
+            }
+
+        #expect(wasSignaled)
+    }
+
+    @Test("并发 outbox 探针在限定时间后结束等待")
+    func concurrentOutboxProbeWaitEndsWhenTimedOut() async {
+        let wasSignaled = await PaymentKitExampleModel
+            .waitForConcurrentOutboxProbeSignal(
+                timeoutNanoseconds: 20_000_000,
+                pollingIntervalNanoseconds: 1_000_000
+            ) {
+                false
+            }
+
+        #expect(!wasSignaled)
+    }
+
     @Test("StoreKit 配置文件结构完整")
     func storeKitConfigurationIsValid() throws {
         let url = try #require(
@@ -1844,7 +1872,73 @@ struct PaymentKitStoreKitTests {
         }
     }
 
-    @Test("关闭自动续订和价格上涨状态可被刷新")
+    @Test("冷启动保持订阅状态更新监听且不误报重连")
+    @available(iOS 17.0, macOS 14.0, *)
+    func coldStartKeepsSubscriptionStatusUpdatesOpen() async throws {
+        let context = try makeContext()
+        defer { context.cleanup() }
+
+        try await context.withStartedClient {
+            guard try await loadProductsOrRecordEnvironmentIssue(context) != nil else { return }
+            _ = try await context.client.purchase(productID: productIDs[2])
+        }
+
+        let logger = RecordingPaymentLogHandler()
+        let coldClient = PaymentClient(
+            configuration: PaymentConfiguration(productIDs: productIDs),
+            processor: RecordingProcessor(),
+            logger: logger,
+            pendingTransactionsDatabaseURL: context.storageDirectoryURL
+                .appendingPathComponent("cold-start.sqlite3", isDirectory: false)
+        )
+        await coldClient.start()
+        do {
+            let snapshot = await coldClient.snapshot()
+            #expect(snapshot.products.map(\.id) == productIDs)
+            #expect(
+                snapshot.subscriptionStatuses.contains {
+                    $0.transaction.productID == productIDs[2]
+                }
+            )
+
+            // `Status.all` 枚举当前快照后会正常结束；如果被误作长期监听，首次
+            // 250 ms 重连窗口内必然出现这条告警。
+            try await Task.sleep(for: .milliseconds(600))
+            #expect(
+                !logger.entries.contains {
+                    $0.category == "subscription-status"
+                        && $0.message == "订阅状态监听意外结束，准备重新建立"
+                }
+            )
+            await coldClient.stop()
+        } catch {
+            await coldClient.stop()
+            throw error
+        }
+    }
+
+    @Test("长期订阅状态监听只消费状态变化序列")
+    func subscriptionStatusListenerUsesUpdatesSequence() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/PaymentKit/PaymentStoreGateway.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let normalizedSource = source
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+
+        #expect(
+            normalizedSource.contains(
+                "let statusUpdates: Product.SubscriptionInfo.Status.Statuses = "
+                    + "Product.SubscriptionInfo.Status.updates"
+            )
+        )
+        #expect(!source.contains("Product.SubscriptionInfo.Status.all"))
+    }
+
+    @Test("关闭自动续订由长期监听自动刷新且价格上涨可被主动刷新")
     @available(iOS 15.4, macOS 13.0, *)
     func observesAutoRenewAndPriceIncreaseChanges() async throws {
         let context = try makeContext()
@@ -1858,7 +1952,7 @@ struct PaymentKitStoreKitTests {
             )
             try context.session.disableAutoRenewForTransaction(identifier: testTransaction.identifier)
             try await waitUntil(description: "关闭自动续订状态未传播") {
-                guard let snapshot = try? await context.client.refresh() else { return false }
+                let snapshot = await context.client.snapshot()
                 return snapshot.subscriptionStatuses.contains { !$0.renewalInfo.willAutoRenew }
             }
 
@@ -2384,6 +2478,20 @@ private actor ExampleAsyncLatch {
     }
 }
 
+private actor ExampleProbeSignal {
+    private let opensAfterCheckCount: Int
+    private var checkCount = 0
+
+    init(opensAfterCheckCount: Int) {
+        self.opensAfterCheckCount = opensAfterCheckCount
+    }
+
+    func check() -> Bool {
+        checkCount += 1
+        return checkCount >= opensAfterCheckCount
+    }
+}
+
 private enum ExampleReconciliationTestError: Error {
     case refreshFailed
 }
@@ -2737,6 +2845,20 @@ private actor RecordingProcessor: TransactionProcessor {
 
     func transactions(for productID: String) -> [PaymentTransaction] {
         processedTransactions.filter { $0.productID == productID }
+    }
+}
+
+private final class RecordingPaymentLogHandler:
+    PaymentLogHandler, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [PaymentLogEntry] = []
+
+    var entries: [PaymentLogEntry] {
+        lock.withLock { storage }
+    }
+
+    func log(_ entry: PaymentLogEntry) {
+        lock.withLock { storage.append(entry) }
     }
 }
 

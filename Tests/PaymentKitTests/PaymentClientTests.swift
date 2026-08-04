@@ -1626,7 +1626,7 @@ struct PaymentClientTests {
         #expect(await gateway.syncCount == 1)
     }
 
-    @Test("商店会话热重载清除上一账号的权威订阅缓存且不执行同步")
+    @Test("商店会话热重载清除上一账号的订阅更新缓存且不执行同步")
     func reloadStoreSessionClearsPreviousAccountSubscriptionCache() async throws {
         let gateway = FakePaymentStoreGateway()
         await gateway.setProducts([
@@ -1659,17 +1659,16 @@ struct PaymentClientTests {
                 statuses: [
                     .fixture(
                         transactionID: 150,
-                        renewalJWS: "account-a-authoritative",
+                        renewalJWS: "account-a-update",
                         willAutoRenew: false
                     ),
                 ],
-                verificationFailures: [],
-                replacedGroupIDs: ["group"]
+                verificationFailures: []
             )
         )
         try await waitUntil {
             await client.snapshot().subscriptionStatuses.first?
-                .renewalInfo.jwsRepresentation == "account-a-authoritative"
+                .renewalInfo.jwsRepresentation == "account-a-update"
         }
 
         await gateway.setSubscriptionResult(
@@ -1721,21 +1720,20 @@ struct PaymentClientTests {
                 statuses: [
                     .fixture(
                         transactionID: 151,
-                        renewalJWS: "account-a-authoritative",
+                        renewalJWS: "account-a-update",
                         willAutoRenew: false
                     ),
                 ],
-                verificationFailures: [],
-                replacedGroupIDs: ["group"]
+                verificationFailures: []
             )
         )
         try await waitUntil {
             await client.snapshot().subscriptionStatuses.first?
-                .renewalInfo.jwsRepresentation == "account-a-authoritative"
+                .renewalInfo.jwsRepresentation == "account-a-update"
         }
 
         // AppStore.sync() 完成后，StoreKit 查询已经代表账号 B。恢复流程还必须
-        // 清除账号 A 的权威事件缓存并重建长期监听，不能只在旧会话上 refresh。
+        // 清除账号 A 的订阅更新缓存并重建长期监听，不能只在旧会话上 refresh。
         await gateway.setSubscriptionResult(
             StoreSubscriptionStatusResult(
                 statuses: [],
@@ -1998,8 +1996,8 @@ struct PaymentClientTests {
         #expect(await gateway.syncCount == 0)
     }
 
-    @Test("订阅组状态序列为空时清除陈旧查询结果")
-    func emptyAuthoritativeSubscriptionGroupUpdateClearsStaleQuery() async throws {
+    @Test("主动查询为空时保留已验签订阅状态更新")
+    func emptySubscriptionQueryPreservesVerifiedStatusUpdate() async throws {
         let gateway = FakePaymentStoreGateway()
         await gateway.setProducts([
             StoreProduct(
@@ -2013,27 +2011,132 @@ struct PaymentClientTests {
         await gateway.setSubscriptionResult(
             StoreSubscriptionStatusResult(
                 statuses: [
-                    .fixture(transactionID: 141, willAutoRenew: true),
+                    .fixture(
+                        transactionID: 141,
+                        renewalJWS: "queried-renewal-jws",
+                        willAutoRenew: true
+                    ),
                 ],
+                verificationFailures: [],
+                renewalInfoSignedDatesByStatusID: [
+                    "group|141": Date(timeIntervalSince1970: 10),
+                ]
+            )
+        )
+        let client = makeClient(gateway: gateway)
+        await client.start()
+        defer { Task { await client.stop() } }
+
+        await gateway.yieldSubscriptionStatusUpdate(
+            StoreSubscriptionStatusResult(
+                statuses: [
+                    .fixture(
+                        transactionID: 141,
+                        renewalJWS: "updated-renewal-jws",
+                        willAutoRenew: false
+                    ),
+                ],
+                verificationFailures: [],
+                renewalInfoSignedDatesByStatusID: [
+                    "group|141": Date(timeIntervalSince1970: 20),
+                ]
+            )
+        )
+        try await waitUntil {
+            await client.snapshot().subscriptionStatuses.first?
+                .renewalInfo.jwsRepresentation == "updated-renewal-jws"
+        }
+
+        await gateway.setSubscriptionResult(
+            StoreSubscriptionStatusResult(
+                statuses: [],
+                verificationFailures: []
+            )
+        )
+
+        let snapshot = try await client.refresh()
+
+        #expect(snapshot.subscriptionStatuses.count == 1)
+        #expect(
+            snapshot.subscriptionStatuses.first?.renewalInfo.jwsRepresentation
+                == "updated-renewal-jws"
+        )
+        #expect(snapshot.subscriptionStatuses.first?.renewalInfo.willAutoRenew == false)
+    }
+
+    @Test("较新的主动查询淘汰旧订阅状态更新缓存")
+    func newerSubscriptionQueryEvictsOlderStatusUpdate() async throws {
+        let gateway = FakePaymentStoreGateway()
+        await gateway.setProducts([
+            StoreProduct(
+                value: .fixture(
+                    id: "premium",
+                    type: .autoRenewableSubscription,
+                    subscriptionGroupID: "group"
+                )
+            ),
+        ])
+        await gateway.setSubscriptionResult(
+            StoreSubscriptionStatusResult(
+                statuses: [],
                 verificationFailures: []
             )
         )
         let client = makeClient(gateway: gateway)
         await client.start()
         defer { Task { await client.stop() } }
-        #expect(await client.snapshot().subscriptionStatuses.count == 1)
 
         await gateway.yieldSubscriptionStatusUpdate(
             StoreSubscriptionStatusResult(
-                statuses: [],
+                statuses: [
+                    .fixture(
+                        transactionID: 142,
+                        renewalJWS: "older-update-renewal-jws",
+                        willAutoRenew: false
+                    ),
+                ],
                 verificationFailures: [],
-                replacedGroupIDs: ["group"]
+                renewalInfoSignedDatesByStatusID: [
+                    "group|142": Date(timeIntervalSince1970: 20),
+                ]
+            )
+        )
+        try await waitUntil {
+            await client.snapshot().subscriptionStatuses.first?
+                .renewalInfo.jwsRepresentation == "older-update-renewal-jws"
+        }
+
+        await gateway.setSubscriptionResult(
+            StoreSubscriptionStatusResult(
+                statuses: [
+                    .fixture(
+                        transactionID: 142,
+                        renewalJWS: "newer-query-renewal-jws",
+                        willAutoRenew: true
+                    ),
+                ],
+                verificationFailures: [],
+                renewalInfoSignedDatesByStatusID: [
+                    "group|142": Date(timeIntervalSince1970: 30),
+                ]
             )
         )
 
-        try await waitUntil {
-            await client.snapshot().subscriptionStatuses.isEmpty
-        }
+        let newerSnapshot = try await client.refresh()
+        #expect(
+            newerSnapshot.subscriptionStatuses.first?.renewalInfo.jwsRepresentation
+                == "newer-query-renewal-jws"
+        )
+
+        await gateway.setSubscriptionResult(
+            StoreSubscriptionStatusResult(
+                statuses: [],
+                verificationFailures: []
+            )
+        )
+
+        let emptySnapshot = try await client.refresh()
+        #expect(emptySnapshot.subscriptionStatuses.isEmpty)
     }
 
     @Test("按交易查询的新续订状态覆盖陈旧订阅组结果")
@@ -2139,8 +2242,7 @@ struct PaymentClientTests {
         let baseline = await gateway.subscriptionStatusRequestCount
         let update = StoreSubscriptionStatusResult(
             statuses: [.fixture(transactionID: 152)],
-            verificationFailures: [],
-            replacedGroupIDs: ["group"]
+            verificationFailures: []
         )
 
         await gateway.yieldSubscriptionStatusUpdate(update)

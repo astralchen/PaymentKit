@@ -98,18 +98,15 @@ internal struct StoreSubscriptionStatusResult: Sendable, Equatable {
     let statuses: [PaymentSubscriptionStatus]
     let verificationFailures: [StoreVerificationFailure]
     let renewalInfoSignedDatesByStatusID: [String: Date]
-    let replacedGroupIDs: Set<String>
 
     init(
         statuses: [PaymentSubscriptionStatus],
         verificationFailures: [StoreVerificationFailure],
-        renewalInfoSignedDatesByStatusID: [String: Date] = [:],
-        replacedGroupIDs: Set<String> = []
+        renewalInfoSignedDatesByStatusID: [String: Date] = [:]
     ) {
         self.statuses = statuses
         self.verificationFailures = verificationFailures
         self.renewalInfoSignedDatesByStatusID = renewalInfoSignedDatesByStatusID
-        self.replacedGroupIDs = replacedGroupIDs
     }
 }
 
@@ -508,36 +505,6 @@ internal actor StoreKitPaymentStoreGateway: PaymentStoreGateway {
         )
     }
 
-    private func mapSubscriptionStatuses(
-        _ statuses: [Product.SubscriptionInfo.Status],
-        fallbackGroupID: String,
-        replacesGroup: Bool
-    ) async -> StoreSubscriptionStatusResult {
-        var mappedStatuses: [PaymentSubscriptionStatus] = []
-        var failures: [StoreVerificationFailure] = []
-        var signedDatesByStatusID: [String: Date] = [:]
-
-        for status in statuses {
-            let mapped = await mapSubscriptionStatus(
-                status,
-                fallbackGroupID: fallbackGroupID
-            )
-            mappedStatuses.append(contentsOf: mapped.statuses)
-            failures.append(contentsOf: mapped.verificationFailures)
-            signedDatesByStatusID.merge(
-                mapped.renewalInfoSignedDatesByStatusID,
-                uniquingKeysWith: max
-            )
-        }
-
-        return StoreSubscriptionStatusResult(
-            statuses: mappedStatuses,
-            verificationFailures: failures,
-            renewalInfoSignedDatesByStatusID: signedDatesByStatusID,
-            replacedGroupIDs: replacesGroup ? [fallbackGroupID] : []
-        )
-    }
-
     func transactionUpdates() async -> AsyncStream<StoreTransactionVerification> {
         AsyncStream { continuation in
             let task = Task { [weak self] in
@@ -554,40 +521,21 @@ internal actor StoreKitPaymentStoreGateway: PaymentStoreGateway {
         }
     }
 
-    /// 监听每个订阅组的当前状态，并在旧系统回退为仅监听后续变化。
+    /// 长期监听订阅状态变化；当前状态由 `subscriptionStatuses(for:)` 主动加载。
     func subscriptionStatusUpdates() async -> AsyncStream<StoreSubscriptionStatusResult> {
         AsyncStream { continuation in
             let task = Task { [weak self] in
-                if #available(
-                    iOS 17.0,
-                    macOS 14.0,
-                    tvOS 17.0,
-                    watchOS 10.0,
-                    visionOS 1.0,
-                    *
-                ) {
-                    for await update in Product.SubscriptionInfo.Status.all {
-                        guard !Task.isCancelled else { break }
-                        guard let self else { break }
-                        continuation.yield(
-                            await self.mapSubscriptionStatuses(
-                                update.statuses,
-                                fallbackGroupID: update.groupID,
-                                replacesGroup: true
-                            )
+                let statusUpdates: Product.SubscriptionInfo.Status.Statuses =
+                    Product.SubscriptionInfo.Status.updates
+                for await status in statusUpdates {
+                    guard !Task.isCancelled else { break }
+                    guard let self else { break }
+                    continuation.yield(
+                        await self.mapSubscriptionStatus(
+                            status,
+                            fallbackGroupID: nil
                         )
-                    }
-                } else {
-                    for await status in Product.SubscriptionInfo.Status.updates {
-                        guard !Task.isCancelled else { break }
-                        guard let self else { break }
-                        continuation.yield(
-                            await self.mapSubscriptionStatus(
-                                status,
-                                fallbackGroupID: nil
-                            )
-                        )
-                    }
+                    )
                 }
                 continuation.finish()
             }

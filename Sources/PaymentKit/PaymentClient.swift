@@ -61,7 +61,6 @@ public actor PaymentClient {
     private var cachedSubscriptionStatusUpdates: [
         String: CachedSubscriptionStatusUpdate
     ] = [:]
-    private var authoritativeSubscriptionStatusGroupIDs = Set<String>()
     private var lastSubscriptionStatusUpdate: StoreSubscriptionStatusResult?
     private var explicitStoreSyncDepth = 0
     private var isStoreMessageConsumptionRequested = false
@@ -339,7 +338,6 @@ public actor PaymentClient {
         pendingAutomaticRefreshReplaysUnfinishedTransactions = false
         pendingAutomaticRefreshBoundaryContext = nil
         cachedSubscriptionStatusUpdates.removeAll()
-        authoritativeSubscriptionStatusGroupIDs.removeAll()
         lastSubscriptionStatusUpdate = nil
         storeTransactions.removeAll()
         startupTask?.cancel()
@@ -1016,7 +1014,7 @@ public actor PaymentClient {
         }
 
         // AppStore.sync() 是 Apple 提供的显式账户/交易重新同步边界。同步成功后必须
-        // 丢弃旧会话的长期序列和权威订阅事件缓存；只在旧会话上 refresh 会继续
+        // 丢弃旧会话的长期序列和已验签订阅更新缓存；只在旧会话上 refresh 会继续
         // 合并上一账户的状态。start() 会先重建监听，再重放 unfinished/outbox。
         stop()
         await start()
@@ -1446,11 +1444,6 @@ private extension PaymentClient {
                 message: failure.message
             )
         }
-        for groupID in result.replacedGroupIDs {
-            authoritativeSubscriptionStatusGroupIDs.insert(groupID)
-            cachedSubscriptionStatusUpdates = cachedSubscriptionStatusUpdates
-                .filter { $0.value.status.groupID != groupID }
-        }
         for status in result.statuses {
             let signedDate = result.renewalInfoSignedDatesByStatusID[status.id]
             if let existing = cachedSubscriptionStatusUpdates[status.id],
@@ -1480,32 +1473,12 @@ private extension PaymentClient {
     ) -> StoreSubscriptionStatusResult {
         var statuses = result.statuses
         var signedDates = result.renewalInfoSignedDatesByStatusID
-        let authoritativeGroupIDs =
-            authoritativeSubscriptionStatusGroupIDs.intersection(
-                requestedGroupIDs
-            )
-        let replacedStatusIDs = statuses.compactMap { status in
-            authoritativeGroupIDs.contains(status.groupID) ? status.id : nil
-        }
-        statuses.removeAll {
-            authoritativeGroupIDs.contains($0.groupID)
-        }
-        for statusID in replacedStatusIDs {
-            signedDates.removeValue(forKey: statusID)
-        }
         let cachedUpdates = cachedSubscriptionStatusUpdates
             .values
             .filter { requestedGroupIDs.contains($0.status.groupID) }
             .sorted { $0.status.id < $1.status.id }
 
         for update in cachedUpdates {
-            if authoritativeGroupIDs.contains(update.status.groupID) {
-                statuses.append(update.status)
-                if let updateSignedDate = update.renewalInfoSignedDate {
-                    signedDates[update.status.id] = updateSignedDate
-                }
-                continue
-            }
             if let index = statuses.firstIndex(where: {
                 $0.id == update.status.id
             }) {
@@ -1530,8 +1503,7 @@ private extension PaymentClient {
         return StoreSubscriptionStatusResult(
             statuses: statuses,
             verificationFailures: result.verificationFailures,
-            renewalInfoSignedDatesByStatusID: signedDates,
-            replacedGroupIDs: result.replacedGroupIDs
+            renewalInfoSignedDatesByStatusID: signedDates
         )
     }
 
@@ -1542,7 +1514,6 @@ private extension PaymentClient {
         var statuses = result.statuses
         var failures = result.verificationFailures
         var signedDates = result.renewalInfoSignedDatesByStatusID
-        var replacedGroupIDs = result.replacedGroupIDs
 
         for queriedStatus in result.statuses {
             guard !Task.isCancelled else { break }
@@ -1552,7 +1523,6 @@ private extension PaymentClient {
                 continue
             }
             failures.append(contentsOf: directResult.verificationFailures)
-            replacedGroupIDs.formUnion(directResult.replacedGroupIDs)
 
             for directStatus in directResult.statuses {
                 let directSignedDate =
@@ -1579,8 +1549,7 @@ private extension PaymentClient {
         return StoreSubscriptionStatusResult(
             statuses: statuses,
             verificationFailures: failures,
-            renewalInfoSignedDatesByStatusID: signedDates,
-            replacedGroupIDs: replacedGroupIDs
+            renewalInfoSignedDatesByStatusID: signedDates
         )
     }
 

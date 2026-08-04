@@ -92,28 +92,30 @@ transaction.expirationDate > now  // 当前权益仍然有效
 
 PaymentKit 使用以下层级收敛客户端状态：
 
-1. 启动长期订阅状态监听：
-   - iOS 17+/macOS 14+ 使用 `Product.SubscriptionInfo.Status.all`，按订阅组接收
-     当前状态和后续变化；
-   - 旧系统使用 `Product.SubscriptionInfo.Status.updates`。
-2. 应用回到前台、系统订阅管理页关闭、交易更新和订阅时间边界都会触发状态刷新。
-3. 使用 renewal JWS 的 `signedDate` 合并状态事件和主动查询，避免较旧的订阅组
-   查询覆盖较新的关闭续订事件。
-4. 空的权威订阅组事件会清除该组的陈旧缓存，不会继续展示已经消失的状态。
+1. 启动和刷新使用 `Product.SubscriptionInfo.status(for:)` 主动加载当前订阅组状态。
+2. 所有支持系统使用 `Product.SubscriptionInfo.Status.updates` 长期监听后续变化；
+   `Status.all` 仅枚举当前快照，完成后会正常结束，不得用于长期监听。
+3. 应用回到前台、系统订阅管理页关闭、交易更新和订阅时间边界都会触发状态刷新。
+4. 使用 renewal JWS 的 `signedDate` 合并状态事件和主动查询，避免较旧的订阅组
+   查询覆盖较新的关闭续订事件；较新的主动查询会淘汰较旧事件缓存。
 5. iOS 18.4+ 使用按交易 ID 的订阅状态查询交叉校验订阅组查询结果。
-6. 状态监听意外结束时有限退避重建；`stop()` 后停止重连和提交。
+6. `Status.updates` 意外结束时有限退避重建；`stop()` 后停止重连和提交。
 7. 所有自动路径都只接受 StoreKit 验签成功的数据，不根据文案、按钮、等待时间或
    网络变化猜测 `willAutoRenew`。
+
+主动查询返回空时，客户端不会仅凭一次空结果删除已验签的 `Status.updates` 缓存。
+空结果既可能表示当前账户没有该订阅，也可能是 StoreKit 暂时未返回状态；公共 API
+没有账户标识可供客户端安全区分。需要跨账户收敛时必须使用下述显式会话边界。
 
 ### Apple 账户切换与会话级缓存
 
 StoreKit 没有公开的 Apple 账户切换通知。2026-07-31 的 iPhone SE Sandbox 测试中，
-账户 A 的 `Product.SubscriptionInfo.Status.all` 先把订阅组标记为整组权威；切换到
-无购买历史的账户 B 后，普通查询返回空，但客户端合并逻辑仍保留 A 的权威事件缓存。
+旧实现中，账户 A 的 `Product.SubscriptionInfo.Status.all` 状态被保存在会话缓存；
+切换到无购买历史的账户 B 后，普通查询返回空，但客户端仍保留 A 的已验签事件。
 当前权益始终为 0，因此没有错误授予访问权限，但界面继续显示 A 的已过期订阅状态。
-冷启动后状态消失，证明残留来自进程内的
-`cachedSubscriptionStatusUpdates` 和
-`authoritativeSubscriptionStatusGroupIDs`，不是持久化 outbox。
+冷启动后状态消失，证明残留来自进程内的 `cachedSubscriptionStatusUpdates`，不是
+持久化 outbox。当前实现所有版本统一按签署时间合并 `status(for:)` 快照和
+`Status.updates` 单条事件。
 
 生产修复使用显式商店会话热重载：
 

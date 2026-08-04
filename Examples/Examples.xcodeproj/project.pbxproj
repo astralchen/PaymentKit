@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D30000000000000000000001 /* PaymentKit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = D30000000000000000000002 /* PaymentKit.storekit */; };
 		D40000000000000000000001 /* PaymentKit in Frameworks */ = {isa = PBXBuildFile; productRef = D40000000000000000000004 /* PaymentKit */; };
 		D40000000000000000000002 /* PaymentKit in Frameworks */ = {isa = PBXBuildFile; productRef = D40000000000000000000005 /* PaymentKit */; };
 		D50000000000000000000001 /* PaymentKit in Frameworks */ = {isa = PBXBuildFile; productRef = D5000000000000000000000F /* PaymentKit */; };
@@ -56,6 +57,7 @@
 		770F622E30106ABD009C54ED /* ExamplesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExamplesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		770F623830106ABD009C54ED /* ExamplesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExamplesUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D50000000000000000000004 /* PaymentKitOutboxProbe.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PaymentKitOutboxProbe.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D30000000000000000000002 /* PaymentKit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = PaymentKit.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -129,6 +131,7 @@
 		770F621330106ABB009C54ED = {
 			isa = PBXGroup;
 			children = (
+				D30000000000000000000002 /* PaymentKit.storekit */,
 				770F621E30106ABB009C54ED /* Examples */,
 				770F623130106ABD009C54ED /* ExamplesTests */,
 				770F623B30106ABD009C54ED /* ExamplesUITests */,
@@ -307,6 +310,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D30000000000000000000001 /* PaymentKit.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -215,12 +215,14 @@ After a cold launch, B correctly showed current entitlement 0, subscription
 status 0, and pending 0. StoreKit’s running Sandbox session therefore did not
 emit/return the negative account-state transition needed to remove A’s status.
 
-Root cause and fix (2026-07-31): A’s `Status.all` event had marked the
-subscription group authoritative. A successful empty query for B was then
-reconciled with A’s process-local authoritative cache. `PaymentClient`
-exposes `reloadStoreSession()` for known StoreKit system presentations; it
-rebuilds the lifecycle and clears only session-level caches without calling
-`AppStore.sync()` or deleting the SQLite outbox.
+Root cause and fix (2026-07-31, terminology corrected 2026-08-04): A’s
+verified subscription status event remained in the process-local update cache.
+A successful empty query for B was conservatively reconciled with that cached
+event because StoreKit exposes no account identifier that could prove an
+account switch. `PaymentClient` exposes `reloadStoreSession()` for known
+StoreKit system presentations; it rebuilds the lifecycle and clears only
+session-level caches without calling `AppStore.sync()` or deleting the SQLite
+outbox.
 
 The no-process-exit rerun found a second, lower boundary: A had the
 `paymentkit.demo.lifetime` entitlement, and after switching to B both a normal
@@ -556,8 +558,8 @@ The normal cold launch resurfaced transaction suffix `117714` with
 `entitlementCount=0`, `pendingCount=1`, and `subscriptionCount=1`; PaymentKit
 then delivered/finished that transaction and the visible backend counters
 settled at 40 signed events / 31 business deliveries. At the same time,
-`Product.SubscriptionInfo.Status.all` repeatedly produced a replacement signal
-and ended. In the attached 133-line sample, PaymentKit logged 43 listener
+`Product.SubscriptionInfo.Status.all` repeatedly produced a current-snapshot
+event and ended. In the attached 133-line sample, PaymentKit logged 43 listener
 reconnects and issued 43 `subscription-status` refresh requests. Because every
 short-lived sequence produced an update, the reconnect loop reset its delay to
 250 ms on every pass and never reached the intended 4-second backoff. This is a
@@ -581,6 +583,15 @@ duplicate-event log lines, and a stable 14-line console instead of continuous
 refresh/reconnect work. The client busy loop is fixed; Steps 3–4 remain open
 only for a fresh Apple grace-period state transition. Evidence:
 `/private/tmp/PaymentKit-SubscriptionStatus-Listener-Fix-RealDevice-20260803.jpeg`.
+
+Root-cause correction (2026-08-03): the malformed Sandbox
+`missingValue(... "autoRenewStatus" ...)` remains valid evidence for a separate
+StoreKit data failure, but it is not required to explain the warning observed on
+otherwise normal cold launches. `Product.SubscriptionInfo.Status.all` is a
+finite current-status sequence and normally ends after enumerating its snapshot;
+PaymentKit had incorrectly treated that completion as an unexpected termination.
+The production adapter now loads current groups with `status(for:)` and reserves
+the long-lived reconnect loop for `Status.updates` only.
 
 Attempt 6 result (2026-08-03 11:23–12:15 +0800): tester C completed another
 monthly Sandbox purchase with Allow Purchases & Renewals disabled before the
@@ -765,7 +776,7 @@ The normal Xcode launch then exposed a repeatable StoreKit status failure for
 subscription group `22255725`:
 `missingValue(... "autoRenewStatus" ..., expected: StoreKit.BackingValue)`.
 `Product.SubscriptionInfo.Status.all` ended after the malformed group update;
-PaymentKit repeatedly treated the replacement signal as a state-refresh
+PaymentKit repeatedly treated the finite snapshot event as a state-refresh
 request and rebuilt the subscription-status listener. Each refresh took about
 80–90 ms and the UI remained at “PaymentKit 已启动并监听交易” instead of
 rendering a complete subscription snapshot. This is no longer solely an Apple
